@@ -410,14 +410,29 @@ class LeakyReluLayer(Layer):
     """Layer implementing an element-wise leaky rectified linear transformation."""
     def __init__(self, alpha=0.01):
         self.alpha = alpha
+        # alpha is a single manually selected scalar value, 
+        #usually in the range of 0.001 − 0.2.
+        # this is your negative slope
 
     def fprop(self, inputs):
         """Forward propagates activations through the layer transformation.
 
         For inputs `x` and outputs `y` this corresponds to `y = ..., else`.
         """
+        #return x for x in inputs if x>0, else alpha*x
 
-        raise NotImplementedError
+        #inputs_pos = np.maximum(inputs, 0.)
+        #print("positive inputs: ", inputs_pos)
+        
+        #inputs_neg = inputs
+        #print("leaky inputs: ", inputs) 
+        #inputs_neg[inputs_neg < 0] = 0.
+        
+        #inputs_neg = self.alpha * inputs_neg
+        #outputs = inputs_neg + inputs_pos
+    
+        #return outputs
+        return np.maximum(self.alpha*inputs, inputs)
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
         """Back propagates gradients through a layer.
@@ -425,7 +440,17 @@ class LeakyReluLayer(Layer):
         Given gradients with respect to the outputs of the layer calculates the
         gradients with respect to the layer inputs.
         """
-        raise NotImplementedError
+        
+        # takes 
+        #grads_neg = self.alpha * (0 > outputs) * grads_wrt_outputs
+        #grads_pos = (0 > outputs) * grads_wrt_outputs
+        #grads = grads_neg + grads_pos
+               
+        #return grads
+        grads = np.zeros_like(inputs)
+        grads[inputs <= 0] = self.alpha
+        grads[inputs > 0] = 1
+        return grads
 
     def __repr__(self):
         return 'LeakyReluLayer'
@@ -445,7 +470,7 @@ class RandomReluLayer(Layer):
 
         For inputs `x` and outputs `y` this corresponds to `y = ..., else`.
         """
-        raise NotImplementedError
+        return np.maximum(inputs, 0.)
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
         """Back propagates gradients through a layer.
@@ -453,7 +478,7 @@ class RandomReluLayer(Layer):
         Given gradients with respect to the outputs of the layer calculates the
         gradients with respect to the layer inputs.
         """
-        raise NotImplementedError
+        return (outputs > 0) * grads_wrt_outputs
 
     def __repr__(self):
         return 'RandomReluLayer'
