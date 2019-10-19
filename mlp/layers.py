@@ -432,6 +432,7 @@ class LeakyReluLayer(Layer):
         #outputs = inputs_neg + inputs_pos
     
         #return outputs
+        #print(np.maximum(self.alpha*inputs, inputs))
         return np.maximum(self.alpha*inputs, inputs)
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
@@ -448,8 +449,11 @@ class LeakyReluLayer(Layer):
                
         #return grads
         grads = np.zeros_like(inputs)
+        #print('Grads zeros_like array that takes inputs', grads.shape)
         grads[inputs <= 0] = self.alpha
+        #print('setting inputs <= 0 to alpha', grads)
         grads[inputs > 0] = 1
+        #print('setting inputs > 0 to 1', grads)
         return grads
 
     def __repr__(self):
@@ -464,13 +468,18 @@ class RandomReluLayer(Layer):
 
         if rng is None:
             self.rng = np.random.RandomState(seed=1234)
+            
+        
 
     def fprop(self, inputs, leakiness=None):
         """Forward propagates activations through the layer transformation.
 
         For inputs `x` and outputs `y` this corresponds to `y = ..., else`.
         """
-        return np.maximum(inputs, 0.)
+        #print(leakiness)
+        self.alpha = self.rng.uniform(self.lower, self.upper, inputs.shape)
+        self.leakiness = leakiness                              
+        return np.maximum(leakiness * inputs, inputs)
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
         """Back propagates gradients through a layer.
@@ -478,7 +487,14 @@ class RandomReluLayer(Layer):
         Given gradients with respect to the outputs of the layer calculates the
         gradients with respect to the layer inputs.
         """
-        return (outputs > 0) * grads_wrt_outputs
+        #return grads
+        grads = self.leakiness
+        #print('Grads zeros_like array that takes inputs', grads.shape)
+        #grads[inputs <= 0] = self.alpha
+        #print('setting inputs <= 0 to alpha', grads)
+        grads[inputs > 0] = 1
+        #print('setting inputs > 0 to 1', grads)
+        return grads      
 
     def __repr__(self):
         return 'RandomReluLayer'
