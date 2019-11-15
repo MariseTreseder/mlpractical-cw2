@@ -401,6 +401,7 @@ class ReluLayer(Layer):
             Array of gradients with respect to the layer inputs of shape
             (batch_size, input_dim).
         """
+       
         return (outputs > 0) * grads_wrt_outputs
 
     def __repr__(self):
@@ -419,21 +420,10 @@ class LeakyReluLayer(Layer):
 
         For inputs `x` and outputs `y` this corresponds to `y = ..., else`.
         """
-        #return x for x in inputs if x>0, else alpha*x
 
-        #inputs_pos = np.maximum(inputs, 0.)
-        #print("positive inputs: ", inputs_pos)
-        
-        #inputs_neg = inputs
-        #print("leaky inputs: ", inputs) 
-        #inputs_neg[inputs_neg < 0] = 0.
-        
-        #inputs_neg = self.alpha * inputs_neg
-        #outputs = inputs_neg + inputs_pos
-    
-        #return outputs
-        #print(np.maximum(self.alpha*inputs, inputs))
-        return np.maximum(self.alpha*inputs, inputs)
+        self.inputs = inputs
+        pos_alphas = np.maximum(self.alpha*self.inputs, self.inputs)
+        return pos_alphas
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
         """Back propagates gradients through a layer.
@@ -441,20 +431,21 @@ class LeakyReluLayer(Layer):
         Given gradients with respect to the outputs of the layer calculates the
         gradients with respect to the layer inputs.
         """
+        self.grads_wrt_outputs = grads_wrt_outputs
+        #print(self.grads_wrt_outputs)
+        pos = np.zeros_like(outputs)
+        pos[outputs > 0] = 1
         
-        # takes 
-        #grads_neg = self.alpha * (0 > outputs) * grads_wrt_outputs
-        #grads_pos = (0 > outputs) * grads_wrt_outputs
-        #grads = grads_neg + grads_pos
-               
-        #return grads
-        grads = np.zeros_like(inputs)
-        #print('Grads zeros_like array that takes inputs', grads.shape)
-        grads[inputs <= 0] = self.alpha
-        #print('setting inputs <= 0 to alpha', grads)
-        grads[inputs > 0] = 1
-        #print('setting inputs > 0 to 1', grads)
-        return grads
+        negs = np.zeros_like(outputs)
+        negs[outputs <= 0] = 1
+        
+        derivative_pos = pos * self.grads_wrt_outputs
+        
+        negs_alpha = self.alpha * self.grads_wrt_outputs
+        derivative_neg = negs * negs_alpha
+
+        result = derivative_pos + derivative_neg
+        return result
 
     def __repr__(self):
         return 'LeakyReluLayer'
@@ -476,10 +467,10 @@ class RandomReluLayer(Layer):
 
         For inputs `x` and outputs `y` this corresponds to `y = ..., else`.
         """
-        #print(leakiness)
-        self.alpha = self.rng.uniform(self.lower, self.upper, inputs.shape)
-        self.leakiness = leakiness                              
-        return np.maximum(leakiness * inputs, inputs)
+        self.leakiness = leakiness
+        if leakiness is None:
+            self.leakiness = self.rng.uniform(self.lower, self.upper, inputs.shape)
+        return np.maximum(self.leakiness * inputs, inputs)
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
         """Back propagates gradients through a layer.
@@ -487,20 +478,27 @@ class RandomReluLayer(Layer):
         Given gradients with respect to the outputs of the layer calculates the
         gradients with respect to the layer inputs.
         """
-        #return grads
-        grads = self.leakiness
-        #print('Grads zeros_like array that takes inputs', grads.shape)
-        #grads[inputs <= 0] = self.alpha
-        #print('setting inputs <= 0 to alpha', grads)
-        grads[inputs > 0] = 1
-        #print('setting inputs > 0 to 1', grads)
-        return grads      
+        self.grads_wrt_outputs = grads_wrt_outputs
+        pos = np.zeros_like(outputs)
+        pos[outputs > 0] = 1
+        
+        negs = np.zeros_like(outputs)
+        negs[outputs <= 0] = 1
+        
+        derivative_pos = pos * self.grads_wrt_outputs
+        
+        negs_alpha = self.leakiness * self.grads_wrt_outputs
+        derivative_neg = negs * negs_alpha
+
+        result = derivative_pos + derivative_neg
+        return result
 
     def __repr__(self):
         return 'RandomReluLayer'
 
 class ParametricReluLayer(LayerWithParameters):
-    """Layer implementing an element-wise parametric rectified linear transformation."""
+    """Layer implementing an element-wise parametric rectified linear transformation were alpha is a single learnable parameter usually initialised
+    uniformly in the range 0.001-0.2 and learned using backpropagation."""
 
     def __init__(self, alpha=0.25):
         self.alpha = np.array([alpha])
@@ -515,7 +513,7 @@ class ParametricReluLayer(LayerWithParameters):
 
         For inputs `x` and outputs `y` this corresponds to `y = ..., else`.
         """
-        raise NotImplementedError
+        return np.maximum(self.alpha*inputs, inputs)
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
         """Back propagates gradients through a layer.
@@ -523,7 +521,21 @@ class ParametricReluLayer(LayerWithParameters):
         Given gradients with respect to the outputs of the layer calculates the
         gradients with respect to the layer inputs.
         """
-        raise NotImplementedError
+        self.grads_wrt_outputs = grads_wrt_outputs
+        outputs_copy = np.copy(outputs)
+        pos = np.zeros_like(outputs_copy)
+        pos[outputs_copy > 0] = 1
+        
+        negs = np.zeros_like(outputs_copy)
+        negs[outputs_copy <= 0] = 1
+        
+        derivative_pos = pos * self.grads_wrt_outputs
+        
+        negs_alpha = self.alpha * self.grads_wrt_outputs
+        derivative_neg = negs * negs_alpha
+
+        result = derivative_pos + derivative_neg
+        return result
 
     def grads_wrt_params(self, inputs, grads_wrt_outputs):
         """Calculates gradients with respect to layer parameters.
@@ -537,7 +549,14 @@ class ParametricReluLayer(LayerWithParameters):
             list of arrays of gradients with respect to the layer parameters
             `[grads_wrt_params]`. Where params is the alpha parameter.
         """
-        raise NotImplementedError
+
+        inputs_copy = np.copy(inputs)
+        inputs_copy[inputs_copy > 0] = 0
+        
+        grads_wrt_weights = grads_wrt_outputs*inputs_copy
+        grads_wrt_params = np.sum(grads_wrt_weights)     
+        
+        return [grads_wrt_params]
 
     @property
     def params(self):
@@ -561,7 +580,17 @@ class ExponentialLinearUnitLayer(Layer):
 
         For inputs `x` and outputs `y` this corresponds to `y = ..., else`.
         """
-        raise NotImplementedError
+        negs = np.zeros_like(inputs)
+        negs[inputs < 0] = 1
+        negs_rule = negs*self.alpha*(np.exp(inputs) - np.ones_like(inputs))
+        
+        pos = np.zeros_like(inputs)
+        pos[inputs >= 0] = 1
+        pos_rule = pos*inputs
+        
+        result = negs_rule + pos_rule
+
+        return result
 
     def bprop(self, inputs, outputs, grads_wrt_outputs):
         """Back propagates gradients through a layer.
@@ -569,7 +598,24 @@ class ExponentialLinearUnitLayer(Layer):
         Given gradients with respect to the outputs of the layer calculates the
         gradients with respect to the layer inputs.
         """
-        raise NotImplementedError
+       
+    
+        self.grads_wrt_outputs = grads_wrt_outputs
+    
+        pos = np.zeros_like(outputs)
+        pos[inputs > 0] = 1
+        
+        negs = np.zeros_like(outputs)
+        negs[inputs <= 0] = 1
+        
+        grads_pos = pos * self.grads_wrt_outputs
+        
+        negs_alpha = outputs + self.alpha
+        grads_neg = negs*negs_alpha* self.grads_wrt_outputs
+
+        result = grads_pos + grads_neg
+        
+        return result
 
     def __repr__(self):
         return 'ExponentialLinearUnitLayer'

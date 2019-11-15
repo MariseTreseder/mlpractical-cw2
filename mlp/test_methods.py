@@ -85,7 +85,7 @@ def test_parametric_relu():
     fprop_test = np.allclose(correct_outputs['fprop_correct'], out)
 
     bprop_test = np.allclose(correct_outputs['grad_correct'], grads)
-
+    
     grad_wrt_param_test = np.allclose(correct_outputs['grad_param'], grad_wrt_param)
 
     return fprop_test, out, correct_outputs['fprop_correct'], bprop_test, grads, correct_outputs['grad_correct'], \
